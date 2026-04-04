@@ -1,5 +1,7 @@
 #include <pebble.h>
 
+// #define DEMO
+
 #define CELL_SIZE 2
 #define BATCH 2
 static uint8_t fps = 15;
@@ -105,9 +107,16 @@ static void frame_redraw(Layer *layer, GContext *ctx) {
     GBitmap *fb = graphics_capture_frame_buffer(ctx);
     for (int y = 0; y < bounds.size.h; y += CELL_SIZE) {
       GBitmapDataRowInfo info = gbitmap_get_data_row_info(fb, y);
+      for (int x = 0; x < info.min_x / CELL_SIZE; x++) {
+        Cell *cell = get_cell(x, y / CELL_SIZE);
+        cell->type = CellTypeBedrock;
+      }
+      for (int x = info.max_x / CELL_SIZE; x < cols; x++) {
+        Cell *cell = get_cell(x, y / CELL_SIZE);
+        cell->type = CellTypeBedrock;
+      }
       for (int x = info.min_x; x <= info.max_x; x += CELL_SIZE) {
         GColor color = get_pixel_color(info, GPoint(x, y));
-        // printf("%d %d", color.argb, settings.fg_color.argb);
         uint8_t compare = settings.fg_color.argb;
 #ifdef PBL_BW
         if (settings.fg_color.argb != GColorBlack.argb &&
@@ -129,7 +138,7 @@ static void frame_redraw(Layer *layer, GContext *ctx) {
     for (int y = 0; y < rows; y++) {
       for (int x = 0; x < cols; x++) {
         Cell *cell = get_cell(x, y);
-        if (cell->type != CellTypeAir) {
+        if (cell->type == CellTypeSand) {
           graphics_fill_rect(
               ctx, GRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE), 0,
               0);
@@ -251,6 +260,9 @@ static void next_gen_r() {
 }
 
 static void new_frame(void *data) {
+  if (cells == NULL) {
+    cells = calloc(len, sizeof(Cell));
+  }
   for (size_t i = 0; i < BATCH; i++) {
     switch (gravity) {
     case DirectionD:
@@ -292,22 +304,8 @@ static void reset() {
   len = rows * cols;
   if (cells != NULL) {
     free(cells);
+    cells = NULL;
   }
-  cells = calloc(len, sizeof(Cell));
-  // for (size_t i = 0; i < len; i++) {
-  //   uint8_t val = rand() % 256;
-  //   val &= rand() % 256;
-  //   cells[i] = val;
-  // }
-  // for (size_t i = 0; i < len; i++) {
-  //   Cell *cell = &cells[i];
-  //   if (rand() % 3 == 0) {
-  //     cell->type = CellTypeSand;
-  //   }
-  // }
-  // if (frame_timer == NULL) {
-  //   new_frame(NULL);
-  // }
 }
 
 static void accel_data_handler(AccelData *data, uint32_t num_samples) {
@@ -444,6 +442,9 @@ static void init() {
   window_stack_push(s_main_window, true);
   app_message_register_inbox_received(inbox_received_handler);
   app_message_open(128, 128);
+#ifdef DEMO
+  light_enable(true);
+#endif
 }
 
 int main(void) {
