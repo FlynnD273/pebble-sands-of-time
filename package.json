@@ -1,16 +1,13 @@
 {
-	"name": "Conway's Game of Life",
+	"name": "Sands of Time",
 	"author": "Flynn Duniho",
-	"version": "1.5.0",
-	"keywords": [
-		"pebble-app"
-	],
+	"version": "1.0.0",
 	"pebble": {
 		"capabilities": [
 			"configurable"
 		],
-		"displayName": "Conway",
-		"uuid": "26d396de-37ee-421c-a483-5966c5f1247d",
+		"displayName": "Sands of Time",
+		"uuid": "2d7a508b-95e8-4010-a7e0-a6d69cd1ea2b",
 		"sdkVersion": "3",
 		"enableMultiJS": true,
 		"targetPlatforms": [
@@ -23,14 +20,12 @@
 			"gabbro"
 		],
 		"watchapp": {
-			"watchface": false
+			"watchface": true
 		},
 		"messageKeys": [
-			"EdgeWrap",
-			"FPS",
-			"CellSize",
 			"BGColor",
-			"FGColor"
+			"FGColor",
+			"ActivationTime"
 		],
 		"resources": {
 			"media": [
