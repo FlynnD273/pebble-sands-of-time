@@ -24,6 +24,7 @@ static int height;
 static int frame = 0;
 
 static GFont font;
+static uint16_t font_size = 0;
 static char time_buf[8];
 
 static int rows;
@@ -94,15 +95,10 @@ static GColor get_pixel_color(GBitmapDataRowInfo info, GPoint point) {
 
 static void draw_time(Layer *layer, GContext *ctx) {
   graphics_context_set_text_color(ctx, settings.fg_color);
-#if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
-  graphics_draw_text(ctx, time_buf, font,
-                     GRect(0, bounds.size.h / 2 - 36, bounds.size.w, 60),
-                     GTextOverflowModeFill, GTextAlignmentCenter, NULL);
-#else
-  graphics_draw_text(ctx, time_buf, font,
-                     GRect(0, bounds.size.h / 2 - 20, bounds.size.w, 40),
-                     GTextOverflowModeFill, GTextAlignmentCenter, NULL);
-#endif
+  graphics_draw_text(
+      ctx, time_buf, font,
+      GRect(0, (bounds.size.h - font_size) / 2, bounds.size.w, bounds.size.h),
+      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
 static void frame_redraw(Layer *layer, GContext *ctx) {
@@ -394,8 +390,10 @@ static void main_window_load(Window *window) {
 
 #if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
   font = fonts_get_system_font(FONT_KEY_LECO_60_NUMBERS_AM_PM);
+  font_size = 72;
 #else
   font = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
+  font_size = 42;
 #endif
 
   layer_add_child(window_layer, sand_layer);
