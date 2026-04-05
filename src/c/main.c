@@ -94,9 +94,15 @@ static GColor get_pixel_color(GBitmapDataRowInfo info, GPoint point) {
 
 static void draw_time(Layer *layer, GContext *ctx) {
   graphics_context_set_text_color(ctx, settings.fg_color);
+#if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_EMERY)
+  graphics_draw_text(ctx, time_buf, font,
+                     GRect(0, bounds.size.h / 2 - 36, bounds.size.w, 60),
+                     GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+#else
   graphics_draw_text(ctx, time_buf, font,
                      GRect(0, bounds.size.h / 2 - 20, bounds.size.w, 40),
                      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+#endif
 }
 
 static void frame_redraw(Layer *layer, GContext *ctx) {
@@ -386,7 +392,11 @@ static void main_window_load(Window *window) {
   height = bounds.size.h;
   reset();
 
+#if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_EMERY)
+  font = fonts_get_system_font(FONT_KEY_LECO_60_NUMBERS_AM_PM);
+#else
   font = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
+#endif
 
   layer_add_child(window_layer, sand_layer);
   layer_set_update_proc(sand_layer, frame_redraw);
