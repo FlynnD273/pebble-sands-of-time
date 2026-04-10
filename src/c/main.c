@@ -1,10 +1,14 @@
+#ifndef PBL_PLATFORM_APLITE
+#include <pebble-fctx/fctx.h>
+#include <pebble-fctx/ffont.h>
+#endif
 #include <pebble.h>
 
 // #define DEMO
 
 #define CELL_SIZE 2
-#define BATCH 2
-static uint8_t fps = 15;
+#define BATCH 1
+#define FPS 30
 
 #define SETTINGS_KEY 1
 
@@ -23,9 +27,15 @@ static int width;
 static int height;
 static int frame = 0;
 
-static GFont font;
-static uint16_t font_size = 0;
+#ifndef PBL_PLATFORM_APLITE
+static FContext *fcontext;
+static FFont *font;
+#else
+static GFont time_font;
+static GFont date_font;
+#endif
 static char time_buf[8];
+static char date_buf[12];
 
 static int rows;
 static int cols;
@@ -59,6 +69,7 @@ typedef struct Cell {
 static Cell bedrock = (Cell){.type = CellTypeBedrock};
 static Cell *cells = NULL;
 static Direction gravity = DirectionD;
+static AccelData *accel_data;
 static size_t len;
 
 static AppTimer *frame_timer;
@@ -66,7 +77,11 @@ static AppTimer *activation_timer = NULL;
 static bool is_resetting = false;
 
 static void default_settings() {
+#ifdef PBL_BW
+  settings.fg_color = GColorWhite;
+#else
   settings.fg_color = GColorIcterine;
+#endif
   settings.bg_color = GColorBlack;
   settings.activation_time = 10000;
 }
@@ -94,11 +109,39 @@ static GColor get_pixel_color(GBitmapDataRowInfo info, GPoint point) {
 }
 
 static void draw_time(Layer *layer, GContext *ctx) {
+#ifndef PBL_PLATFORM_APLITE
+  fctx_init_context(fcontext, ctx);
   graphics_context_set_text_color(ctx, settings.fg_color);
+  uint16_t time_size = bounds.size.w * 16 / 48;
+  fctx_set_text_em_height(fcontext, font, time_size);
+  fctx_set_offset(fcontext, FPoint(bounds.size.w * 16 / 2,
+                                   bounds.size.h * 16 / 2 - time_size * 4));
+  fctx_set_fill_color(fcontext, settings.fg_color);
+  fctx_draw_string(fcontext, time_buf, font, GTextAlignmentCenter,
+                   FTextAnchorMiddle);
+  fctx_end_fill(fcontext);
+
+  uint16_t date_size = bounds.size.w * 16 / 108;
+  fctx_set_text_em_height(fcontext, font, date_size);
+  fctx_set_offset(fcontext, FPoint(bounds.size.w * 16 / 2,
+                                   bounds.size.h * 16 / 2 + date_size * 6));
+  fctx_set_fill_color(fcontext, settings.fg_color);
+  fctx_draw_string(fcontext, date_buf, font, GTextAlignmentCenter,
+                   FTextAnchorTop);
+  fctx_end_fill(fcontext);
+
+  fctx_deinit_context(fcontext);
+#else
+  graphics_context_set_fill_color(ctx, settings.fg_color);
   graphics_draw_text(
-      ctx, time_buf, font,
-      GRect(0, (bounds.size.h - font_size) / 2, bounds.size.w, bounds.size.h),
+      ctx, time_buf, time_font,
+      GRect(0, bounds.size.h / 2 - 24, bounds.size.w, bounds.size.h),
       GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+  graphics_draw_text(
+      ctx, date_buf, date_font,
+      GRect(0, bounds.size.h / 2 + 16, bounds.size.w, bounds.size.h),
+      GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+#endif
 }
 
 static void frame_redraw(Layer *layer, GContext *ctx) {
@@ -127,10 +170,8 @@ static void frame_redraw(Layer *layer, GContext *ctx) {
         }
 #endif
         bool is_solid = color.argb == compare;
-        if (is_solid) {
-          Cell *cell = get_cell(x / CELL_SIZE, y / CELL_SIZE);
-          cell->type = CellTypeSand;
-        }
+        Cell *cell = get_cell(x / CELL_SIZE, y / CELL_SIZE);
+        cell->type = is_solid ? CellTypeSand : CellTypeAir;
       }
     }
     graphics_release_frame_buffer(ctx, fb);
@@ -261,56 +302,7 @@ static void next_gen_r() {
   }
 }
 
-static void new_frame(void *data) {
-  if (cells == NULL) {
-    cells = calloc(len, sizeof(Cell));
-  }
-  for (size_t i = 0; i < BATCH; i++) {
-    switch (gravity) {
-    case DirectionD:
-      next_gen_d();
-      break;
-    case DirectionDR:
-      next_gen_dr();
-      break;
-    case DirectionDL:
-      next_gen_dl();
-      break;
-    case DirectionU:
-    case DirectionUR:
-    case DirectionUL:
-      next_gen_u();
-      break;
-    case DirectionR:
-      next_gen_r();
-      break;
-    case DirectionL:
-      next_gen_l();
-      break;
-    case DirectionNone:
-      // Don't update
-      break;
-    }
-    frame++;
-  }
-  layer_mark_dirty(sand_layer);
-  if (activation_timer) {
-    frame_timer = app_timer_register(1000 / fps, new_frame, NULL);
-  }
-}
-
-static void reset() {
-  frame = 0;
-  cols = width / CELL_SIZE;
-  rows = height / CELL_SIZE;
-  len = rows * cols;
-  if (cells != NULL) {
-    free(cells);
-    cells = NULL;
-  }
-}
-
-static void accel_data_handler(AccelData *data, uint32_t num_samples) {
+static void set_gravity(AccelData *data) {
 #ifdef DEMO
   gravity = DirectionD;
 #else
@@ -320,55 +312,63 @@ static void accel_data_handler(AccelData *data, uint32_t num_samples) {
     gravity = DirectionNone;
     return;
   }
-  int16_t x = 12 * data->x - 5 * data->y;
-  int16_t y = 5 * data->x + 12 * data->y;
-  if (x > 0) {
-    if (y > 0) {
-      if (x > y) {
-        gravity = DirectionR;
-      } else {
-        gravity = DirectionUR;
-      }
-    } else {
-      if (x > -y) {
-        gravity = DirectionDR;
-      } else {
-        gravity = DirectionD;
-      }
-    }
-  } else {
-    if (y > 0) {
-      if (-x > y) {
-        gravity = DirectionUL;
-      } else {
-        gravity = DirectionU;
-      }
-    } else {
-      if (x < y) {
-        gravity = DirectionL;
-      } else {
-        gravity = DirectionDL;
-      }
-    }
-  }
+  gravity = (atan2_lookup(data->x, data->y) + TRIG_MAX_ANGLE / 16) * 8 /
+            TRIG_MAX_ANGLE;
 #endif
 }
 
+static void new_frame(void *data) {
+  accel_service_peek(accel_data);
+  set_gravity(accel_data);
+  switch (gravity) {
+  case DirectionD:
+    next_gen_d();
+    break;
+  case DirectionDR:
+    next_gen_dr();
+    break;
+  case DirectionDL:
+    next_gen_dl();
+    break;
+  case DirectionU:
+  case DirectionUR:
+  case DirectionUL:
+    next_gen_u();
+    break;
+  case DirectionR:
+    next_gen_r();
+    break;
+  case DirectionL:
+    next_gen_l();
+    break;
+  case DirectionNone:
+    // Don't update
+    break;
+  }
+  frame++;
+  layer_mark_dirty(sand_layer);
+  if (activation_timer) {
+    frame_timer = app_timer_register(1000 / FPS, new_frame, NULL);
+  }
+}
+
 static void end_sim() {
-  gravity = DirectionNone;
+  if (frame_timer) {
+    app_timer_cancel(frame_timer);
+  }
+  frame_timer = NULL;
   activation_timer = NULL;
-  accel_data_service_unsubscribe();
-  reset();
+  gravity = DirectionNone;
+  frame = 0;
+  layer_mark_dirty(sand_layer);
 }
 
 static void accel_tap_handler(AccelAxisType axis, int32_t count) {
   if (activation_timer) {
     app_timer_reschedule(activation_timer, settings.activation_time);
   } else {
-    accel_data_service_subscribe(1, accel_data_handler);
     activation_timer =
         app_timer_register(settings.activation_time, end_sim, NULL);
-    reset();
     is_resetting = true;
     new_frame(NULL);
   }
@@ -377,6 +377,13 @@ static void accel_tap_handler(AccelAxisType axis, int32_t count) {
 static void update_time(struct tm *tick_time, TimeUnits units_changed) {
   strftime(time_buf, sizeof(time_buf), clock_is_24h_style() ? "%H:%M" : "%I:%M",
            tick_time);
+  if (tick_time->tm_mday < 10) {
+    strftime(date_buf, sizeof(date_buf), "%a, %b ", tick_time);
+    date_buf[9] = '0' + tick_time->tm_mday;
+    date_buf[10] = '\0';
+  } else {
+    strftime(date_buf, sizeof(date_buf), "%a, %b %e", tick_time);
+  }
   layer_mark_dirty(sand_layer);
 }
 
@@ -386,15 +393,24 @@ static void main_window_load(Window *window) {
   sand_layer = layer_create(bounds);
   width = bounds.size.w;
   height = bounds.size.h;
-  reset();
 
-#if defined(PBL_PLATFORM_EMERY) || defined(PBL_PLATFORM_GABBRO)
-  font = fonts_get_system_font(FONT_KEY_LECO_60_NUMBERS_AM_PM);
-  font_size = 72;
+  accel_data = malloc(sizeof(AccelData));
+
+#ifndef PBL_PLATFORM_APLITE
+  fcontext = malloc(sizeof(FContext));
+  font = ffont_create_from_resource(RESOURCE_ID_FONT);
 #else
-  font = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
-  font_size = 42;
+  time_font = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
+  date_font = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
 #endif
+
+  cols = width / CELL_SIZE;
+  rows = height / CELL_SIZE;
+  len = rows * cols;
+  cells = malloc(len * sizeof(Cell));
+  if (cells == NULL) {
+    printf("Out of memory :(");
+  }
 
   layer_add_child(window_layer, sand_layer);
   layer_set_update_proc(sand_layer, frame_redraw);
@@ -410,6 +426,11 @@ static void main_window_unload(Window *window) {
   layer_destroy(sand_layer);
   window_destroy(s_main_window);
   free(cells);
+#ifndef PBL_PLATFORM_APLITE
+  ffont_destroy(font);
+  free(fcontext);
+#endif
+  free(accel_data);
 }
 
 static void load_settings() {

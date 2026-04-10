@@ -1,7 +1,7 @@
 {
 	"name": "Sands of Time",
 	"author": "Flynn Duniho",
-	"version": "1.1.0",
+	"version": "1.2.0",
 	"pebble": {
 		"capabilities": [
 			"configurable"
@@ -34,11 +34,20 @@
 					"menuIcon": true,
 					"name": "MENU_ICON",
 					"type": "bitmap"
+				},
+				{
+					"file": "Coiny-Regular.ffont",
+					"name": "FONT",
+					"type": "raw"
 				}
 			]
 		}
 	},
 	"dependencies": {
-		"@rebble/clay": "^1.0.8"
+		"@rebble/clay": "^1.0.8",
+		"pebble-fctx": "^1.6.5"
+	},
+	"devDependencies": {
+		"pebble-fctx-compiler": "^1.2.2"
 	}
 }

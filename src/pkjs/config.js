@@ -16,7 +16,16 @@ module.exports = [
 		"messageKey": "FGColor",
 		"label": "Foreground color",
 		"defaultValue": "0xFFFFFF",
-		"allowGray": false
+		"allowGray": false,
+		"capabilities": ["BW"],
+	},
+	{
+		"type": "color",
+		"messageKey": "FGColor",
+		"label": "Foreground color",
+		"defaultValue": "0xFFFF55",
+		"allowGray": false,
+		"capabilities": ["COLOR"],
 	},
 	{
 		"type": "color",
